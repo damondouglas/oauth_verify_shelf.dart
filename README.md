@@ -1,19 +1,3 @@
 # oauth_verify_shelf
 
-A library for Dart developers. It is awesome.
-
-## Usage
-
-A simple usage example:
-
-    import 'package:oauth_verify_shelf/oauth_verify_shelf.dart';
-
-    main() {
-      var awesome = new Awesome();
-    }
-
-## Features and bugs
-
-Please file feature requests and bugs at the [issue tracker][tracker].
-
-[tracker]: http://example.com/issues/replaceme
+oauth_verify_shelf is a [shelf](https://pub.dartlang.org/packages/shelf) middleware that validates OAuth authorization headers.  It returns 404 response when headers are missing or do not match specified client ID.
