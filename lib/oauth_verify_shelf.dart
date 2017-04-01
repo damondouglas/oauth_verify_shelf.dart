@@ -12,39 +12,51 @@ final RESPONSE_404 = new shelf.Response.notFound(null);
 class OauthTokenVerifier {
   String clientId;
   OauthTokenVerifier(this.clientId);
-  shelf.Middleware get middleware =>
-      shelf.createMiddleware(requestHandler: (shelf.Request request) async {
-        var headers = request.headers;
-        if (!headers.containsKey(AUTHORIZATION)) return RESPONSE_404;
+  shelf.Middleware verifyAuthorizationHeader() => (shelf.Handler innerHandler) {
+        return (shelf.Request request) async {
+          bool isTokenValid = false;
+          if (_validateHeaders(request)) {
+            var oauthToken = _extractOauthTokenFromAuthorizationHeader(
+                request.headers[AUTHORIZATION]);
+            isTokenValid = await verify(clientId, oauthToken)
+                .then((_isValid) => _isValid, onError: (_) {
+              print("Invalid token request:");
+              print("${request.headers}");
+            });
+          }
 
-        var authorization = headers[AUTHORIZATION];
-        var oauthToken =
-            _extractOauthTokenFromAuthorizationHeader(authorization);
-        var isTokenValid = await verify(clientId, oauthToken);
-        if (!isTokenValid) return RESPONSE_404;
-      });
+          if (isTokenValid) {
+            return new Future.sync(() => innerHandler(request)).then(
+                (shelf.Response response) {
+              return response;
+            }, onError: (error, stackTrace) {
+              print(error);
+              print(stackTrace);
+              return _create404();
+            });
+          } else {
+            return _create404();
+          }
+        };
+      };
 }
+
+shelf.Response _create404() => new shelf.Response.notFound(null);
+
+bool _validateHeaders(shelf.Request request) =>
+    request.headers.containsKey(AUTHORIZATION);
 
 String _extractOauthTokenFromAuthorizationHeader(String authorizationHeader) =>
     authorizationHeader.replaceAll(BEARER, '');
 
 Future<bool> verify(String clientId, String oauthToken) async {
-  try {
-    oauth.Tokeninfo tokenInfo = await info.load(oauthToken);
-    bool isTokenValid = false;
-    if (tokenInfo != null) {
-      isTokenValid = tokenInfo.expiresIn > 0 && tokenInfo.issuedTo == clientId;
-    } else
-      print('token is null from $oauthToken');
+  bool isTokenValid = false;
+  oauth.Tokeninfo tokenInfo =
+      await info.load(oauthToken).then((_info) => _info, onError: (_) => null);
 
-    if (!isTokenValid) {
-      print('$oauthToken is not valid');
-      if (tokenInfo != null) print(tokenInfo.toJson());
-    }
-
-    return isTokenValid;
-  } catch (e) {
-    print(e);
-    return false;
+  if (tokenInfo != null) {
+    isTokenValid = tokenInfo.expiresIn > 0 && tokenInfo.issuedTo == clientId;
   }
+
+  return isTokenValid;
 }
